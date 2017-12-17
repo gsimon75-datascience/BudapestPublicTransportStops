@@ -19,6 +19,9 @@ and it conforms the [GTFS format](GTFS format documentation: https://developers.
 Each stop is displayed with the pictogram of its transport type, and when the cursor is hovered above them,
 they display the number(s) of the route(s) and the name of the stop.
 
+The source GitHub repository is accessible [here](https://github.com/gsimon75/BudapestPublicTransportStops),
+the online viewable HTML page [here](https://gsimon75.github.io/BudapestPublicTransportStops).
+
 ## Implementation details
 
 In the GTFS data the route-to-stop mapping isn't available directly, only via a series of
@@ -28,7 +31,7 @@ When a stop is part of multiple routes, it appears in the data multiple times, s
 
 ## The map
 
-```{r}
+```{r, comment=""}
 library(dplyr)
 library(leaflet)
 library(htmltools)
