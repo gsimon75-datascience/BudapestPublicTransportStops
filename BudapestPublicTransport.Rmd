@@ -1,0 +1,97 @@
+---
+title: "Stops of Budapest Public Transport"
+author: "Gabor Simon"
+date: "2017-12-17"
+output: html
+---
+
+## About
+
+This page aims to demonstrate the R binding of `leaflet` by displaying the public transport stops of Budapest, Hungary.
+
+The original data files are available freely at BKK Centre for Budapest Transport [here](http://www.bkk.hu/gtfs/budapest_gtfs.zip).
+
+According to the accompanying [page](http://www.bkk.hu/tomegkozlekedes/fejlesztoknek) the data is updated on a weekly basis,
+and it conforms the [GTFS format](GTFS format documentation: https://developers.google.com/transit/gtfs/reference).
+
+**NOTE**: this page uses only a snapshot of the data, so it may be out-of-date by the time you see it.
+
+Each stop is displayed with the pictogram of its transport type, and when the cursor is hovered above them,
+they display the number(s) of the route(s) and the name of the stop.
+
+## Implementation details
+
+In the GTFS data the route-to-stop mapping isn't available directly, only via a series of
+joins (route - trip - stoptime - stop) which involve rather large tables, a caching is added to speed up subsequent runs.
+
+When a stop is part of multiple routes, it appears in the data multiple times, so a grouping was also necessary.
+
+## The map
+
+```{r}
+library(dplyr)
+library(leaflet)
+library(htmltools)
+
+zip_url <- "http://www.bkk.hu/gtfs/budapest_gtfs.zip"
+zip_file <- "budapest_gtfs.zip"
+input_files <- c("routes.txt", "trips.txt", "stop_times.txt", "stops.txt")
+if (!all(file.exists(input_files))) {
+	if (!file.exists(zip_file))
+		download.file(zip_url)
+	unzip(zip_file, input_files)
+}
+
+if (file.exists("stops_of_routes.rds")) {
+	# use cached route-to-stop mapping
+	stops_of_routes <- readRDS("stops_of_routes.rds")
+} else {
+	message("Reading route data, may take long for the first time!")
+
+	# *route_id*, *trip_id*, service_id, trip_headsign, direction_id, block_id, *shape_id*, wheelchair_accessible, bikes_allowed
+	trips <- tibble::as.tibble(read.csv("trips.txt", colClasses=c("character", "character", "NULL", "NULL", "NULL", "NULL", "character", "NULL", "NULL"))) %>% unique()
+
+	# *trip_id*, *stop_id*, arrival_time, departure_time, stop_sequence, pickup_type, drop_off_type, shape_dist_traveled
+	stoptimes <- tibble::as.tibble(read.csv("stop_times.txt", colClasses=c("character", "character", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL"))) %>% unique()
+
+	# get a mapping between route_id and stop_id
+	stops_of_routes <- stoptimes %>% inner_join(trips, by="trip_id") %>% mutate(trip_id=NULL, shape_id=NULL) %>% unique()
+	saveRDS(stops_of_routes, "stops_of_routes.rds")
+}
+
+# agency_id, *route_id*, *route_short_name*, route_long_name, *route_type*, route_desc, route_color, route_text_color, route_icon_display_text
+routes <- tibble::as.tibble(read.csv("routes.txt", colClasses=c("NULL", "character", "character", "NULL", "integer", "NULL", "NULL", "NULL", "NULL"))) %>% unique()
+
+# *stop_id*, *stop_name*, *stop_lat*, *stop_lon*, stop_code, location_type, parent_station, wheelchair_boarding, stop_direction
+stops <- tibble::as.tibble(read.csv("stops.txt", colClasses=c("character", "character", "real", "real", "NULL", "NULL", "NULL", "NULL", "NULL"))) %>% unique() 
+
+# icon urls for various transportation types
+icons <- data.frame(
+	route_type = c(0, 1, 3, 4, 109, 800),
+	icon = c(
+		"http://bkk.hu/apps/arculat/img/agazat-villamos.png",
+		"http://bkk.hu/apps/arculat/img/agazat-metro.png",
+		"http://bkk.hu/apps/arculat/img/agazat-busz.png",
+		"http://bkk.hu/apps/arculat/img/agazat-hajo.png",
+		"http://bkk.hu/apps/arculat/img/agazat-hev.png",
+		"http://bkk.hu/apps/arculat/img/agazat-trolibusz.png"
+		))
+
+# the list of all stop-route data, joined and coalesced as needed
+all_stops <- stops_of_routes %>%
+	inner_join(routes, by="route_id") %>%
+	inner_join(stops, by="stop_id") %>%
+	inner_join(icons, by="route_type") %>%
+	transmute(lat=stop_lat, lng=stop_lon, route_short_name, stop_name, icon) %>%
+	group_by(lng, lat) %>%
+	summarize(label=paste(paste(collapse=",", route_short_name), sep="/", first(stop_name)), icon=first(icon))
+
+# the resulting map
+leaflet(all_stops) %>%
+	addProviderTiles(providers$OpenStreetMap) %>%
+	addMarkers(~lng, ~lat,
+		clusterOptions=markerClusterOptions,
+		label=~htmlEscape(label),
+		icon=~makeIcon(icon, iconWidth=31, iconHeight=31, iconAnchorX=15, iconAnchorY=15)
+	)
+```
