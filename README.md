@@ -13,5 +13,5 @@ and it conforms the [GTFS format](GTFS format documentation: https://developers.
 Each stop is displayed with the pictogram of its transport type, and when the cursor is hovered above them,
 they display the number(s) of the route(s) and the name of the stop.
 
-The source GitHub repository is accessible [here](https://github.com/gsimon75/BudapestPublicTransportStops),
-the online viewable HTML page [here](https://gsimon75.github.io/BudapestPublicTransportStops).
+The source GitHub repository is accessible [here](https://github.com/gsimon75-datascience/BudapestPublicTransportStops),
+the online viewable HTML page [here](https://gsimon75-datascience.github.io/BudapestPublicTransportStops).
